@@ -165,8 +165,24 @@ describe('UsageFootCard content', () => {
     expect(container.querySelector('[data-dsh-part="foot-card-usage"]')?.textContent).toBe('12.3k tokens · 45 次调用')
   })
 
-  it('user sees the token headline when nothing today was priced', () => {
-    // Given an overview with unpriced usage only (cost stays 0)
+  it('user sees the spend converted when the display currency is USD', () => {
+    // Given an overview with priced today usage and a form choosing USD at 6.67
+    document.documentElement.lang = 'en'
+    const over = overview([deepseekBalance], { inputTokens: 10_000, calls: 45, cost: 12.34 })
+    const settings = fakeForm({ currency: 'USD', usdRate: 6.67 }).form
+
+    // When the foot card renders
+    const { container } = render(<UsageFootCard {...cardProps(over, { settings })} />)
+
+    // Then the headline converts at the configured rate, while the balance line
+    // keeps the provider's own currency as the API reported it
+    const card = container.querySelector('[data-dsh-part="foot-card"]')
+    expect(card?.textContent).toContain('$1.85')
+    expect(card?.textContent).not.toContain('¥12.34')
+    expect(container.querySelector('[data-dsh-part="foot-card-balances"]')?.textContent).toBe('DeepSeek ¥42.00')
+  })
+
+  it('user sees the token headline when nothing today was priced', () => {    // Given an overview with unpriced usage only (cost stays 0)
     document.documentElement.lang = 'zh'
     const over = overview([], { inputTokens: 3000, calls: 3 })
 

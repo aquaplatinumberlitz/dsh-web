@@ -425,7 +425,7 @@ describe('UsageSectionCard settings writes', () => {
   it('writes the rounded poll interval and keeps out-of-range drafts off the wire', () => {
     const live = fakeForm()
     render(<UsageSectionCard {...cardProps(overview(mixed))} settings={live.form} />)
-    const interval = screen.getByRole('spinbutton')
+    const interval = screen.getByLabelText('轮询间隔（秒）')
     fireEvent.change(interval, { target: { value: '120' } })
     expect(live.writes).toEqual([['pollIntervalSec', 120]])
     fireEvent.change(interval, { target: { value: '10' } })
@@ -472,5 +472,53 @@ describe('peak marker', () => {
     const line = document.querySelector('[data-dsh-part="peak-status"]')
     expect(line?.getAttribute('data-peak')).toBe('off')
     expect(line?.textContent).toContain('空闲时段')
+  })
+})
+
+describe('UsageSectionCard spend display currency', () => {
+  it('user sees the bank spend line in USD at the configured rate', () => {
+    // Given an official fold-time estimate of ¥21.00 and a form choosing USD at 7
+    document.documentElement.lang = 'zh'
+    const snapshot = overview([])
+    snapshot.usage.all = {
+      from: '2026-01-01',
+      to: '2026-01-01',
+      totals: emptyTotals(),
+      providers: [{ provider: 'deepseek', totals: { ...emptyTotals(), inputTokens: 50_000, calls: 2, cost: 21 }, models: [] }],
+    }
+    const form = fakeForm({ value: { currency: 'USD', usdRate: 7 } }).form
+    render(<UsageSectionCard {...cardProps(snapshot)} settings={form} />)
+
+    // When the user opens the Token 银行 tab
+    fireEvent.click(screen.getByRole('tab', { name: 'Token 银行' }))
+
+    // Then the spend line converts the stored CNY amount and keeps the ledger untouched
+    expect(screen.getByText('消费估算：约 $3.00').textContent).toBe('消费估算：约 $3.00')
+  })
+
+  it('user changes the display currency from the settings row', () => {
+    // Given a writable form whose effective currency is CNY
+    document.documentElement.lang = 'zh'
+    const policy = fakeForm({ value: { currency: 'CNY', usdRate: 6.67 } })
+    render(<UsageSectionCard {...cardProps(overview([]))} settings={policy.form} />)
+
+    // When the user picks USD in the spend-currency select
+    fireEvent.change(screen.getByLabelText('消费显示货币'), { target: { value: 'USD' } })
+
+    // Then the form receives exactly that write and no other field moves
+    expect(policy.writes).toEqual([['currency', 'USD']])
+  })
+
+  it('user changes the CNY-per-USD rate from the settings row', () => {
+    // Given a writable form in the USD display
+    document.documentElement.lang = 'zh'
+    const policy = fakeForm({ value: { currency: 'USD', usdRate: 6.67 } })
+    render(<UsageSectionCard {...cardProps(overview([]))} settings={policy.form} />)
+
+    // When the user types a new rate
+    fireEvent.change(screen.getByLabelText('美元汇率（1 USD 合多少 CNY）'), { target: { value: '7.2' } })
+
+    // Then only the rate is written, clamped to the accepted range by the input
+    expect(policy.writes).toEqual([['usdRate', 7.2]])
   })
 })

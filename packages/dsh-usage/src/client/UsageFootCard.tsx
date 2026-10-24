@@ -31,6 +31,7 @@ import { formatClock, PeakBadge } from './PeakBadge.tsx'
 import { formatTokens, type UsageSettings } from './UsageSectionCard.tsx'
 import { deepseekPeriodAt } from '../core/pricing.ts'
 import { isDeepSeekProviderRoute } from '../core/adapters.ts'
+import { formatSpend, type SpendDisplay } from '../core/currency.ts'
 import { totalTokens } from '../core/ledger.ts'
 import type { BalanceView, ProviderSnapshotView, UsageOverviewView } from '../core/types.ts'
 import type { UsageStoreInstance } from './usage-store.ts'
@@ -144,13 +145,13 @@ function spendProvider(snapshot: UsageOverviewView): string | undefined {
  * The headline triple: today's priced spend, else today's tokens, else zero.
  * tokenFallback tells the sub-line to keep only the call count instead of
  * repeating the total the headline already shows; provider names the spender
- * beside the collapsed cost headline.
+ * beside the collapsed cost headline; display decides the spend's currency.
  */
-function headline(snapshot: UsageOverviewView): { label: string; value: string; tokenFallback: boolean; provider?: string } {
+function headline(snapshot: UsageOverviewView, display: SpendDisplay): { label: string; value: string; tokenFallback: boolean; provider?: string } {
   const totals = snapshot.usage.today.totals
-  if (totals.cost > 0) return { label: t('usage.foot.cost'), value: '¥' + totals.cost.toFixed(2), tokenFallback: false, provider: spendProvider(snapshot) }
+  if (totals.cost > 0) return { label: t('usage.foot.cost'), value: formatSpend(totals.cost, display), tokenFallback: false, provider: spendProvider(snapshot) }
   if (totals.calls > 0) return { label: t('usage.today'), value: formatTokens(totalTokens(totals)) + ' tokens', tokenFallback: true }
-  return { label: t('usage.foot.cost'), value: '¥0.00', tokenFallback: false }
+  return { label: t('usage.foot.cost'), value: formatSpend(0, display), tokenFallback: false }
 }
 
 /** The tokens/calls sub-line under the headline; a quiet no-data line on an empty day. */
@@ -187,6 +188,7 @@ export function UsageFootCard(props: UsageFootCardProps): ReactNode {
   useEffect(() => settings.subscribe(() => bump((count) => count + 1)), [settings])
   useEffect(() => locale?.subscribe(() => bump((count) => count + 1)), [locale])
   const enabled = settings.getSnapshot().value?.enabled ?? true
+  const display = settings.getSnapshot().value ?? {}
 
   // The collapse choice is one localStorage flag, read at mount and persisted
   // on every flip (the old sidebar strip used the same contract shape).
@@ -263,7 +265,7 @@ export function UsageFootCard(props: UsageFootCardProps): ReactNode {
     )
   }
 
-  const head = headline(snapshot)
+  const head = headline(snapshot, display)
   const balances = balanceLine(snapshot)
   // The published peak/off-peak clock prices the official DeepSeek family only,
   // so the marker follows the route that owns today's spend (else the session

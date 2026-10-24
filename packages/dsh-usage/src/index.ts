@@ -3,6 +3,7 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import type { SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import z from '@deepseek-ai/schemastery'
 import { mountOnce } from './mount-once.ts'
+import { DEFAULT_CURRENCY, DEFAULT_USD_RATE, MAX_USD_RATE, MIN_USD_RATE, USAGE_CURRENCIES, type UsageCurrency } from './core/currency.ts'
 import { UsageService, type UsageServiceOptions } from './host/usage-service.ts'
 import { makeUsageDayRoute, makeUsageOverviewRoute, makeUsageRefreshRoute } from './host/routes.ts'
 
@@ -46,6 +47,14 @@ export interface UsageConfigFields {
   pollIntervalSec?: ConfigField<number>
   /** Ledger retention in local days. */
   retainDays?: ConfigField<number>
+  /**
+   * Spend display currency. The host half accepts this field because the Config
+   * schema is the settings page the Host serves; the client half is its only
+   * reader, since it decides how a stored CNY amount is rendered.
+   */
+  currency?: ConfigField<UsageCurrency>
+  /** CNY per 1 USD for the USD display; the client half is its only reader. */
+  usdRate?: ConfigField<number>
 }
 
 /**
@@ -66,6 +75,10 @@ export const Config = z.object({
   enabled: z.boolean().default(true).volatile(),
   pollIntervalSec: z.number().min(30).max(3600).default(60).volatile(),
   retainDays: z.number().min(7).max(730).default(180).volatile(),
+  currency: z.union([...USAGE_CURRENCIES]).default(DEFAULT_CURRENCY).volatile()
+    .description('Currency the spend estimate renders in. The ledger and the price book stay in CNY, so switching converts at render time and never rewrites recorded history.'),
+  usdRate: z.number().min(MIN_USD_RATE).max(MAX_USD_RATE).default(DEFAULT_USD_RATE).volatile()
+    .description('CNY per 1 USD used when the display currency is USD.'),
 })
 
 export interface ResolvedConfig extends UsageServiceOptions {
